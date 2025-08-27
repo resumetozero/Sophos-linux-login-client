@@ -1,1 +1,0 @@
-# Sophos-linux-login-client
