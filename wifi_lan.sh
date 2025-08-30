@@ -1,63 +1,74 @@
 #!/bin/bash
 
-# Sophos client start/stop script
+# Sophos client start/stop script with credential prompt
 
-# Application settings
 APP_DIR="$HOME/caa_x64/bin"
 APP="$APP_DIR/caa"
 LOG_FILE="$APP_DIR/sophos.log"
+CONF_FILE="$HOME/.caa/caa.conf"
 
-# Function to check if Sophos application exists
 check_app() {
     if [ ! -x "$APP" ]; then
-        echo "Error: Sophos client not found at $APP or is not executable."
+        echo "❌ Error: Sophos client not found at $APP or is not executable."
         exit 1
     fi
 }
 
-# Start function
-start() {
-   # echo "Starting Sophos client..."
+create_config() {
+    mkdir -p "$HOME/.caa"
 
-    # Check if Sophos application exists
+    echo "🔑 Enter your Sophos username:"
+    read USERNAME
+
+    echo "🔐 Enter your Sophos password:"
+    read -s PASSWORD   # hidden input
+
+    cat > "$CONF_FILE" <<EOF
+Copernicus host: 192.168.1.1
+Username: $USERNAME
+Password: $PASSWORD
+EOF
+
+    echo "✅ Credentials saved to $CONF_FILE"
+}
+
+start() {
     check_app
 
-    # Start Sophos client, overwrite output to log file with timestamp
+    # If no config or forced reset, prompt for credentials
+    if [ ! -f "$CONF_FILE" ]; then
+        create_config
+    fi
+
     if pgrep -f "$APP" > /dev/null; then
-        echo "Sophos client is already running."
+        echo "⚠️ Sophos client is already running."
     else
-        # Write timestamp to log file first, then start the app
         echo "=== Sophos client started at $(date '+%Y-%m-%d %H:%M:%S') ===" >> "$LOG_FILE"
         "$APP" -d >> "$LOG_FILE" 2>&1 &
-        if [ $? -eq 0 ]; then
-            echo "Sophos client started successfully. Output logged to $LOG_FILE."
+        sleep 2
+        if pgrep -f "$APP" > /dev/null; then
+            echo "✅ Sophos client started successfully. Output logged to $LOG_FILE."
         else
-            echo "Error: Failed to start Sophos client."
-            exit 1
+            echo "❌ Failed to start Sophos client. Check $LOG_FILE for details."
         fi
     fi
 }
 
-# Stop function
 stop() {
-   # echo "Stopping Sophos client..."
-
-    # Check if Sophos application is running
     if ! pgrep -f "$APP" > /dev/null; then
-        echo "Sophos client is not running."
+        echo "⚠️ Sophos client is not running."
     else
-        # Stop Sophos client by killing the process
         pkill -f "$APP"
-        if [ $? -eq 0 ]; then
-            echo "Sophos client stopped successfully."
-        else
-            echo "Error: Failed to stop Sophos client."
-            exit 1
-        fi
+        echo "🛑 Sophos client stopped."
     fi
 }
 
-# Main script logic
+reset() {
+    echo "🗑 Removing old credentials..."
+    rm -f "$CONF_FILE"
+    echo "✅ Credentials cleared. Run 'wifi_lan.sh start' to re-enter them."
+}
+
 case "$1" in
     start)
         start
@@ -65,10 +76,12 @@ case "$1" in
     stop)
         stop
         ;;
+    reset)
+        reset
+        ;;
     *)
-        echo "Usage: $0 {start|stop}"
+        echo "Usage: $0 {start|stop|reset}"
         exit 1
         ;;
 esac
 
-exit 0
